@@ -1,0 +1,124 @@
+@istest
+public with sharing class MaintenanceRequestHelperTest 
+{
+    private static final string ARM_STATUS_NEW = 'New';
+    private static final string ARM_CLOSED = 'Closed';
+    private static final string ARM_WORKING = 'Working';
+    private static final string ARM_REQUEST_ORIGIN = 'Web';
+    private static final string ARM_REPAIR = 'Repair';
+    private static final string ARM_REQUEST_SUBJECT = 'Testing subject';
+    private static final string ARM_REQUEST_TYPE = 'Routine Maintenance';
+    private static Vehicle__c ARM_create_vehicle()
+    {
+        Vehicle__c Vehicle = new Vehicle__C(name = 'SuperTruck');
+        return Vehicle;
+    }
+    private static Product2 ARM_create_equipment()
+    {
+        product2 equipment = new product2(name = 'SuperEquipment', lifespan_months__C = 10, maintenance_cycle__C = 10, replacement_part__c = true);
+        return equipment;
+    }
+    private static Case ARM_create_maintenance_request(id vehicleId, id equipmentId)
+    {
+        case ARM_case = new case(Type=ARM_REPAIR, Status=ARM_STATUS_NEW, Origin=ARM_REQUEST_ORIGIN, Subject=ARM_REQUEST_SUBJECT, Equipment__c=equipmentId, Vehicle__c=vehicleId);
+        return ARM_case;
+    }
+    private static Equipment_Maintenance_Item__c ARM_create_work_part(id equipmentId,id requestId)
+    {
+        Equipment_Maintenance_Item__c wp = new Equipment_Maintenance_Item__c(Equipment__c = equipmentId, Maintenance_Request__c = requestId);
+        return wp;
+    }
+    @istest
+    private static void testMaintenanceRequestPositive()
+    {
+        Vehicle__c vehicle = ARM_create_vehicle();
+        insert vehicle;
+        id vehicleId = vehicle.Id;
+        Product2 equipment = ARM_create_equipment();
+        insert equipment;
+        id equipmentId = equipment.Id;
+        case ARM_case = ARM_create_maintenance_request(vehicleId,equipmentId);
+        insert ARM_case;
+        Equipment_Maintenance_Item__c ARM_work_p = ARM_create_work_part(equipmentId,ARM_case.id);
+        insert ARM_work_p;
+        test.startTest();
+        ARM_case.status = ARM_CLOSED;
+        update ARM_case;
+        test.stopTest();
+        Case newReq = [Select id, subject, type, Equipment__c, Date_Reported__c, Vehicle__c, Date_Due__c from case where status =:ARM_STATUS_NEW];
+        Equipment_Maintenance_Item__c ARM_work_part = [select id from Equipment_Maintenance_Item__c where Maintenance_Request__c =:newReq.Id];
+        system.assert(ARM_work_part != null);
+        system.assert(newReq.Subject != null);
+        system.assertEquals(newReq.Type, ARM_REQUEST_TYPE);
+        SYSTEM.assertEquals(newReq.Equipment__c, equipmentId);
+        SYSTEM.assertEquals(newReq.Vehicle__c, vehicleId);
+        SYSTEM.assertEquals(newReq.Date_Reported__c, system.today());
+    }
+    @istest
+    private static void testMaintenanceRequestNegative()
+    {
+        Vehicle__C vehicle = ARM_create_vehicle();
+        insert vehicle;
+        id vehicleId = vehicle.Id;
+        product2 equipment = ARM_create_equipment();
+        insert equipment;
+        id equipmentId = equipment.Id;
+        case ARM_empty_request = ARM_create_maintenance_request(vehicleId,equipmentId);
+        insert ARM_empty_request;
+        Equipment_Maintenance_Item__c ARM_work_p = ARM_create_work_part(equipmentId, ARM_empty_request.Id);
+        insert ARM_work_p;
+        test.startTest();
+        ARM_empty_request.Status = ARM_WORKING;
+        update ARM_empty_request;
+        test.stopTest();
+        list<case> ARM_all_request = [select id 
+                                 from case];
+        Equipment_Maintenance_Item__c ARM_work_part = [select id from Equipment_Maintenance_Item__c where Maintenance_Request__c = :ARM_empty_request.Id];
+        system.assert(ARM_work_part != null);
+        system.assert(ARM_all_request.size() == 1);
+    }
+    @istest
+    private static void testMaintenanceRequestBulk()
+    {
+        list<Vehicle__C> ARM_vehicle_list = new list<Vehicle__C>();
+        list<Product2> ARM_equipment_list = new list<Product2>();
+        list<Equipment_Maintenance_Item__c> ARM_work_partList = new list<Equipment_Maintenance_Item__c>();
+        list<case> ARM_request_list = new list<case>();
+        list<id> ARM_old_request_ids = new list<id>();
+        
+        for(integer i = 0; i < 300; i++)
+        {
+            ARM_vehicle_list.add(ARM_create_vehicle());
+            ARM_equipment_list.add(ARM_create_equipment());
+        }
+        
+        insert ARM_vehicle_list;
+        
+        insert ARM_equipment_list;
+        
+        for(integer i = 0; i < 300; i++)
+        {
+            ARM_request_list.add(ARM_create_maintenance_request(ARM_vehicle_list.get(i).id, ARM_equipment_list.get(i).id));
+        }
+        
+        insert ARM_request_list;
+        
+        for(integer i = 0; i < 300; i++)
+        {
+            ARM_work_partList.add(ARM_create_work_part(ARM_equipment_list.get(i).id, ARM_request_list.get(i).id));
+        }
+        insert ARM_work_partList;
+        test.startTest();
+        for(case ARM : ARM_request_list)
+        {
+            ARM.Status = ARM_CLOSED;
+            ARM_old_request_ids.add(ARM.Id);
+        }
+        update ARM_request_list;
+        test.stopTest();
+        list<case> ARM_all_requests = [select id from case where status =: ARM_STATUS_NEW];
+        list<Equipment_Maintenance_Item__c> ARM_work_parts = [select id from Equipment_Maintenance_Item__c where Maintenance_Request__c in: ARM_old_request_ids];
+        
+        system.assert(ARM_all_requests.size() == 300);
+    }
+}

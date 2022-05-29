@@ -1,0 +1,18 @@
+@isTest
+public with sharing class WarehouseSyncScheduleTest 
+{     
+    @isTest 
+    static void test() 
+    {
+        String ARM_schedule_time = '00 00 00 * * ? *';
+        
+        Test.startTest();
+        Test.setMock(HttpCalloutMock.class, new WarehouseCalloutServiceMock());
+        
+        String ARM_job_id = System.schedule('Warehouse Time to Schedule to test', ARM_schedule_time, new WarehouseSyncSchedule());
+        CronTrigger ARM_c = [SELECT State FROM CronTrigger WHERE Id =: ARM_job_id];
+        
+        System.assertEquals('WAITING', String.valueOf(ARM_c.State), 'job id match failed');
+        Test.stopTest();
+    }
+}

@@ -1,0 +1,53 @@
+public with sharing class WarehouseCalloutService implements Queueable 
+{
+    private static final String ARM_WAREHOUSE_URL = 'https://th-superbadge-apex.herokuapp.com/equipment';
+
+    @future(callout=true)
+    public static void runWarehouseEquipmentSync()
+    {
+        System.debug('go into runWarehouseEquipmentSync');
+        
+        Http ARM_http = new Http();
+        
+        HttpRequest ARM_request = new HttpRequest();
+        ARM_request.setEndpoint(ARM_WAREHOUSE_URL);
+        ARM_request.setMethod('GET');
+        
+        HttpResponse ARM_response = ARM_http.send(ARM_request);
+        List<Product2> ARM_List = new List<Product2>();
+        System.debug(ARM_response.getStatusCode());
+        
+        if (ARM_response.getStatusCode() == 200)
+        {
+            List<Object> ARM_jsonResponse = (List<Object>)JSON.deserializeUntyped(ARM_response.getBody());
+            System.debug(ARM_response.getBody());
+
+            for (Object jR : ARM_jsonResponse)
+            {
+                Map<String,Object> ARM_mapJson = (Map<String,Object>)jR;
+                Product2 ARM = new Product2();
+                ARM.Replacement_Part__c = (Boolean) ARM_mapJson.get('replacement');
+                ARM.Cost__c = (Integer) ARM_mapJson.get('cost');
+                ARM.Current_Inventory__c = (Double) ARM_mapJson.get('quantity');
+                ARM.Lifespan_Months__c = (Integer) ARM_mapJson.get('lifespan');
+                ARM.Maintenance_Cycle__c = (Integer) ARM_mapJson.get('maintenanceperiod');             
+                ARM.Warehouse_SKU__c = (String) ARM_mapJson.get('sku');
+                ARM.Name = (String) ARM_mapJson.get('name');
+                ARM.ProductCode = (String) ARM_mapJson.get('_id');
+                ARM_List.add(ARM);
+            }
+            if (ARM_List.size() > 0){
+                upsert ARM_List;
+                System.debug('Your equipment was synced with the warehouse one');
+            }
+        }
+    }
+    
+    
+    public static void execute (QueueableContext context)
+    {
+        System.debug('start runWarehouseEquipmentSync');
+        runWarehouseEquipmentSync();
+        System.debug('end runWarehouseEquipmentSync');
+    }
+}

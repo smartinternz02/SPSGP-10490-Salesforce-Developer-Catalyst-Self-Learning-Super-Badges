@@ -1,0 +1,18 @@
+@IsTest
+private class WarehouseCalloutServiceTest 
+{
+	@isTest
+    static void testWarehouseCallout() 
+    {
+        test.startTest();
+        test.setMock(HttpCalloutMock.class, new WarehouseCalloutServiceMock());
+        WarehouseCalloutService.execute(null);
+        test.stopTest();
+        List<Product2> ARM_list = new List<Product2>();
+        ARM_list = [SELECT ProductCode FROM Product2];
+        System.assertEquals(3, ARM_list.size());
+        System.assertEquals('55d66226726b611100aaf741', ARM_list.get(0).ProductCode);
+        System.assertEquals('55d66226726b611100aaf742', ARM_list.get(1).ProductCode);
+        System.assertEquals('55d66226726b611100aaf743', ARM_list.get(2).ProductCode);
+    }
+}
